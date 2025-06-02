@@ -2,11 +2,11 @@ from aiogram import Router
 from yt_dlp import YoutubeDL
 from aiogram.types import Message, FSInputFile
 from aiogram.filters import CommandStart, Command
+from aiogram.fsm.context import FSMContext
 from aiogram.types import InputFile
 import os
 import tempfile
 import asyncio
-
 
 from app.utils import search_youtube_audio_by_name
 
@@ -36,9 +36,10 @@ async def cmd_help(message:Message):
 
 
 @router.message(lambda m: m.text and m.text.startswith("/") and m.text[1:].isdigit())
-async def download_song(message: Message):
-    user_id = message.from_user.id
-    results = user_search_results.get(user_id)
+async def download_song(message: Message, state: FSMContext):
+    # user_id = message.from_user.id
+    # results = user_search_results.get(user_id)
+    results = (await state.get_data())["results"]
     if not results:
         await message.answer("Сначала введите название песни для поиска.")
         return
@@ -71,22 +72,24 @@ async def download_song(message: Message):
 
 
     audio_path = await asyncio.to_thread(download_audio)
+    print(audio_path)
     audio_file = FSInputFile(audio_path)
     await message.answer_audio(audio=audio_file, title=video['title'])
-    os.remove(audio_path)
+    # os.remove(audio_path)
 
 
 
 
 
 @router.message()
-async def search_song(message: Message):
+async def search_song(message: Message, state: FSMContext):
     await message.answer("Уже ищу!")
     title = message.text
     results = await search_youtube_audio_by_name(title)
     if not results: 
         await message.answer("К сожалению, не могу ничего найти по вашему запросу\nМожет поищем что-нибудь другое?")
-    user_search_results[message.from_user.id] = results
+    await state.update_data(results=results)
+    # user_search_results[message.from_user.id] = results
     sms = ''
     for i, video in enumerate(results,1):
         sms+=f"/{i}. {video['title']}\n{video['url']}\n\n"
